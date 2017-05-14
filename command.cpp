@@ -111,8 +111,12 @@ bool Commands::execute() {
 	int status, commandsSize = commands.size();
 
 	for(int i = 0;i < commandsSize;i++) {
-		int type = commands[i].type();
-		char **argv = commands[i].genArgs();
+		int type = commands[i].type(),
+			nextType = i < commandsSize - 1 ? commands[i+1].type() : -1,
+			afterNextType = i < commandsSize - 2 ? commands[i+2].type() : -1;
+		char **argv = commands[i].genArgs(),
+			 **nextArgv = i < commandsSize - 1 ? commands[i+1].genArgs() : NULL,
+			 **afterNextArgv = i < commandsSize - 2 ? commands[i+2].genArgs() : NULL;
 		string cmd(argv[0]);
 
 		if(cmd == "exit") {
@@ -141,29 +145,76 @@ bool Commands::execute() {
 		/* child */
 		else if(pid == 0) {
 			cur.closeReadPipe();
-			/* none or | */
-			if(type == 0 || type == 1) {
-				if(type == 1) {
-					dup2(pre.getReadPipe(), STDIN_FILENO);
-					pre.closeReadPipe();
+			/*  stdin  */
+			/* | */
+			if(type == 1) {
+				dup2(pre.getReadPipe(), STDIN_FILENO);
+				pre.closeReadPipe();
+			}
+			/* < */
+			if(nextType == 2) {
+				int input = open(nextArgv[0], O_RDONLY);
+				if(input == -1) {
+					cout << "read file error" << endl;
+					exit(1);
 				}
+				dup2(input, STDIN_FILENO);
+				close(input);
+			}
+			else if(afterNextType == 2 && nextType == 3) {
+				int input = open(afterNextArgv[0], O_RDONLY);
+				if(input == -1) {
+					cout << "read file error" << endl;
+					exit(1);
+				}
+				dup2(input, STDIN_FILENO);
+				close(input);
+			}
+			/*  stdout  */
+			/* > */
+			if(nextType == 3) {
+				int output = open(nextArgv[0], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+				if(output == -1) {
+					cout << "write file error" << endl;
+					exit(1);
+				}
+				dup2(output, STDOUT_FILENO);
+				close(output);
+			}
+			else if(afterNextType == 3 && nextType == 2) {
+				int output = open(afterNextArgv[0], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+				if(output == -1) {
+					cout << "write file error" << endl;
+					exit(1);
+				}
+				dup2(output, STDOUT_FILENO);
+				close(output);
+			}
+			else {
 				dup2(cur.getWritePipe(), STDOUT_FILENO);
 				cur.closeWritePipe();
-				if(cmd == "export" || cmd == "unset") {
-					execlp("printenv", "printenv", NULL);
-				}
-				else {
-					execvp(argv[0], argv);
-				}
-				printf("Unknown command: [%s].\n", argv[0]);
-				exit(1);
 			}
+			/* exec */
+			if(cmd == "export" || cmd == "unset") {
+				execlp("printenv", "printenv", NULL);
+			}
+			else {
+				execvp(argv[0], argv);
+			}
+			printf("Unknown command: [%s].\n", argv[0]);
+			exit(1);
 		}
 		/* parent */
 		else {
 			waitpid(pid, &status, 0);
+			if((nextType == 2 && afterNextType == 3) || (nextType == 3 && afterNextType == 2)) {
+				i += 2;
+			}
+			else if(nextType == 2 || nextType == 3) {
+				i++;
+			}
 			cur.closeWritePipe();
-			if(i == commandsSize -1) {
+			if(i == commandsSize -1 && nextType != 3 && afterNextType != 3) {
 				char buf[4096];
 				memset(buf, 0, sizeof(buf));
 				int len = 0;
