@@ -118,6 +118,16 @@ bool Commands::execute() {
 		if(cmd == "exit") {
 			return false;
 		}
+		else if(cmd == "export") {
+			if(setenv(argv[1], argv[2], 1) != 0) {
+				cout << "export error" << endl;
+			}
+		}
+		else if(cmd == "unset") {
+			if(unsetenv(argv[1]) != 0) {
+				cout << "unset error" << endl;
+			}
+		}
 
 		cur.createPipe();
 
@@ -131,16 +141,23 @@ bool Commands::execute() {
 		/* child */
 		else if(pid == 0) {
 			cur.closeReadPipe();
-			/* | */
-			if(type == 1) {
-				dup2(pre.getReadPipe(), STDIN_FILENO);
-				pre.closeReadPipe();
+			/* none or | */
+			if(type == 0 || type == 1) {
+				if(type == 1) {
+					dup2(pre.getReadPipe(), STDIN_FILENO);
+					pre.closeReadPipe();
+				}
+				dup2(cur.getWritePipe(), STDOUT_FILENO);
+				cur.closeWritePipe();
+				if(cmd == "export" || cmd == "unset") {
+					execlp("printenv", "printenv", NULL);
+				}
+				else {
+					execvp(argv[0], argv);
+				}
+				printf("Unknown command: [%s].\n", argv[0]);
+				exit(1);
 			}
-			dup2(cur.getWritePipe(), STDOUT_FILENO);
-			cur.closeWritePipe();
-			execvp(argv[0], argv);
-			printf("Unknown command: [%s].\n", argv[0]);
-			exit(1);
 		}
 		/* parent */
 		else {
