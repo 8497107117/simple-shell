@@ -5,8 +5,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+
+#include "pipe.h"
 
 using namespace std;
 
@@ -31,4 +34,5 @@ class Commands {
 		public:
 		Commands(string input);
 		vector<Command> getCommands();
+		void execute();
 };

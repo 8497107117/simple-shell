@@ -40,7 +40,7 @@ char** Command::genArgs() {
 }
 
 void Commands::splitSymbol(string input) {
-	// since \r\n
+	/* \r\n */
 	int indexOfRN = 0;
 	while(1) {
 		indexOfRN = input.find_first_of("\r\n", 0);
@@ -103,4 +103,64 @@ Commands::Commands(string input) {
 
 vector<Command> Commands::getCommands() {
 	return this->commands;
+}
+
+void Commands::execute() {
+	vector<Command> commands = this->commands;
+	UnNamedPipe cur, pre;
+	int status, commandsSize = commands.size();
+
+	for(int i = 0;i < commandsSize;i++) {
+		int type = commands[i].type();
+		char **argv = commands[i].genArgs();
+		string cmd(argv[0]);
+
+		cur.createPipe();
+
+		pid_t pid;
+		pid = fork();
+
+		if(pid < 0) {
+			cout << "fork error" << endl;
+			exit(1);
+		}
+		/* child */
+		else if(pid == 0) {
+			cur.closeReadPipe();
+			/* none */
+			if(type == 0) {
+				dup2(cur.getWritePipe(), STDERR_FILENO);
+				dup2(cur.getWritePipe(), STDIN_FILENO);
+			}
+			/* | */
+			else if(type == 1) {
+				dup2(pre.getReadPipe(), STDIN_FILENO);
+				pre.closeReadPipe();
+			}
+			dup2(cur.getWritePipe(), STDOUT_FILENO);
+			cur.closeWritePipe();
+			execvp(argv[0], argv);
+			printf("Unknown command: [%s].\n", argv[0]);
+			exit(1);
+		}
+		/* parent */
+		else {
+			waitpid(pid, &status, 0);
+			cur.closeWritePipe();
+			if(i == commandsSize -1) {
+				char buf[4096];
+				memset(buf, 0, sizeof(buf));
+				int len = 0;
+				while((len = read(cur.getReadPipe(), buf, 4095)) != 0) {
+					write(STDOUT_FILENO, buf, len);
+				}
+				pre.closeReadPipe();
+				cur.closeReadPipe();
+			}
+			else if(type == 0) {
+				pre.closeReadPipe();
+				pre.setPipe(cur);
+			}
+		}
+	}
 }

@@ -1,7 +1,7 @@
 CXX = g++
 CFLAGS = -g -Wall
 TARGET = shell
-OBJECTS = main.o command.o
+OBJECTS = main.o command.o pipe.o
 
 all: $(TARGET)
 
