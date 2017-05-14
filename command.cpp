@@ -105,7 +105,7 @@ vector<Command> Commands::getCommands() {
 	return this->commands;
 }
 
-void Commands::execute() {
+bool Commands::execute() {
 	vector<Command> commands = this->commands;
 	UnNamedPipe cur, pre;
 	int status, commandsSize = commands.size();
@@ -114,6 +114,10 @@ void Commands::execute() {
 		int type = commands[i].type();
 		char **argv = commands[i].genArgs();
 		string cmd(argv[0]);
+
+		if(cmd == "exit") {
+			return false;
+		}
 
 		cur.createPipe();
 
@@ -127,13 +131,8 @@ void Commands::execute() {
 		/* child */
 		else if(pid == 0) {
 			cur.closeReadPipe();
-			/* none */
-			if(type == 0) {
-				dup2(cur.getWritePipe(), STDERR_FILENO);
-				dup2(cur.getWritePipe(), STDIN_FILENO);
-			}
 			/* | */
-			else if(type == 1) {
+			if(type == 1) {
 				dup2(pre.getReadPipe(), STDIN_FILENO);
 				pre.closeReadPipe();
 			}
@@ -157,10 +156,11 @@ void Commands::execute() {
 				pre.closeReadPipe();
 				cur.closeReadPipe();
 			}
-			else if(type == 0) {
+			else if(type == 0 || type == 1) {
 				pre.closeReadPipe();
 				pre.setPipe(cur);
 			}
 		}
 	}
+	return true;
 }

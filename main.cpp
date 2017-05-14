@@ -18,7 +18,9 @@ int main(int argc, char **argv) {
 		string input;
 		getline(cin, input);
 		Commands command(input);
-		command.execute();
+		if(!command.execute()) {
+			break;
+		}
 		prompt();
 	}
 }
