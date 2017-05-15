@@ -116,7 +116,13 @@ vector<Command> Commands::getCommands() {
 bool Commands::execute() {
 	vector<Command> commands = this->commands;
 	UnNamedPipe cur, pre;
-	int status, commandsSize = commands.size();
+	int status, commandsSize = commands.size(), redirectSize;
+	for(int i = 0;i < commandsSize;i++) {
+		int type = commands[i].type();
+		if(type == 2 || type == 3) {
+			redirectSize++;
+		}
+	}
 
 	for(int i = 0;i < commandsSize;i++) {
 		int type = commands[i].type(),
@@ -141,7 +147,9 @@ bool Commands::execute() {
 			}
 		}
 
-		cur.createPipe();
+		if(commandsSize - redirectSize > 1) {
+			cur.createPipe();
+		}
 
 		pid_t pid;
 		pid = fork();
@@ -198,7 +206,7 @@ bool Commands::execute() {
 				dup2(output, STDOUT_FILENO);
 				close(output);
 			}
-			else {
+			else if(commandsSize - redirectSize > 1){
 				dup2(cur.getWritePipe(), STDOUT_FILENO);
 				cur.closeWritePipe();
 			}
@@ -222,7 +230,7 @@ bool Commands::execute() {
 				i++;
 			}
 			cur.closeWritePipe();
-			if(i == commandsSize -1 && nextType != 3 && afterNextType != 3) {
+			if(i == commandsSize -1 && nextType != 3 && afterNextType != 3 && commandsSize - redirectSize > 1) {
 				char buf[4096];
 				memset(buf, 0, sizeof(buf));
 				int len = 0;
