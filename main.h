@@ -9,4 +9,10 @@
 
 #include "command.h"
 
-#define COMMAND_SIZE 1024
+void reaper(int sig);
+
+void prompt();
+
+void init();
+
+bool execute(vector<Command> commands);

@@ -34,5 +34,4 @@ class Commands {
 		public:
 		Commands(string input);
 		vector<Command> getCommands();
-		bool execute();
 };
