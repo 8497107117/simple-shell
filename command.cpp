@@ -116,13 +116,7 @@ vector<Command> Commands::getCommands() {
 bool Commands::execute() {
 	vector<Command> commands = this->commands;
 	UnNamedPipe cur, pre;
-	int status, commandsSize = commands.size(), redirectSize;
-	for(int i = 0;i < commandsSize;i++) {
-		int type = commands[i].type();
-		if(type == 2 || type == 3) {
-			redirectSize++;
-		}
-	}
+	int status, commandsSize = commands.size();
 
 	for(int i = 0;i < commandsSize;i++) {
 		int type = commands[i].type(),
@@ -132,6 +126,12 @@ bool Commands::execute() {
 			 **nextArgv = i < commandsSize - 1 ? commands[i+1].genArgs() : NULL,
 			 **afterNextArgv = i < commandsSize - 2 ? commands[i+2].genArgs() : NULL;
 		string cmd(argv[0]);
+		if((nextType == 2 && afterNextType == 3) || (nextType == 3 && afterNextType == 2)) {
+			i += 2;
+		}
+		else if(nextType == 2 || nextType == 3) {
+			i++;
+		}
 
 		if(cmd == "exit") {
 			return false;
@@ -147,7 +147,7 @@ bool Commands::execute() {
 			}
 		}
 
-		if(commandsSize - redirectSize > 1) {
+		if(i != commandsSize - 1) {
 			cur.createPipe();
 		}
 
@@ -160,7 +160,9 @@ bool Commands::execute() {
 		}
 		/* child */
 		else if(pid == 0) {
-			cur.closeReadPipe();
+			if(i != commandsSize - 1) {
+				cur.closeReadPipe();
+			}
 			/*  stdin  */
 			/* | */
 			if(type == 1) {
@@ -206,7 +208,7 @@ bool Commands::execute() {
 				dup2(output, STDOUT_FILENO);
 				close(output);
 			}
-			else if(commandsSize - redirectSize > 1){
+			else if(i != commandsSize - 1) {
 				dup2(cur.getWritePipe(), STDOUT_FILENO);
 				cur.closeWritePipe();
 			}
@@ -222,27 +224,23 @@ bool Commands::execute() {
 		}
 		/* parent */
 		else {
-			waitpid(pid, &status, 0);
-			if((nextType == 2 && afterNextType == 3) || (nextType == 3 && afterNextType == 2)) {
-				i += 2;
+			waitpid(pid, &status, WUNTRACED | WCONTINUED);
+			if(WIFEXITED(status)) {
+				printf("exited\n");
 			}
-			else if(nextType == 2 || nextType == 3) {
-				i++;
+			else if(WIFSTOPPED(status)) {
+				printf("stopped\n");
 			}
-			cur.closeWritePipe();
-			if(i == commandsSize -1 && nextType != 3 && afterNextType != 3 && commandsSize - redirectSize > 1) {
-				char buf[4096];
-				memset(buf, 0, sizeof(buf));
-				int len = 0;
-				while((len = read(cur.getReadPipe(), buf, 4095)) != 0) {
-					write(STDOUT_FILENO, buf, len);
-				}
-				pre.closeReadPipe();
-				cur.closeReadPipe();
+			else {
+				printf("???\n");
 			}
-			else if(type == 0 || type == 1) {
+			if(i != commandsSize - 1) {
+				cur.closeWritePipe();
 				pre.closeReadPipe();
 				pre.setPipe(cur);
+			}
+			else {
+				pre.closeReadPipe();
 			}
 		}
 	}
