@@ -235,6 +235,22 @@ bool Commands::execute() {
 				printf("???\n");
 			}
 			if(i != commandsSize - 1) {
+				if(nextType == 3) {
+					int input = open(nextArgv[0], O_RDONLY);
+					if(input == -1) {
+						cout << "read file error" << endl;
+						exit(1);
+					}
+					cur.setReadPipe(input);
+				}
+				else if(afterNextType == 3 && nextType == 2) {
+					int input = open(afterNextArgv[0], O_RDONLY);
+					if(input == -1) {
+						cout << "read file error" << endl;
+						exit(1);
+					}
+					cur.setReadPipe(input);
+				}
 				cur.closeWritePipe();
 				pre.closeReadPipe();
 				pre.setPipe(cur);

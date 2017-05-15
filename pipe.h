@@ -19,6 +19,7 @@ class UnNamedPipe {
 		void createPipe();
 		/* for record */
 		void setPipe(UnNamedPipe p);
+		void setReadPipe(int fd);
 		void closeReadPipe();
 		void closeWritePipe();
 		int getReadPipe();

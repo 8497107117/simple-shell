@@ -25,6 +25,11 @@ void UnNamedPipe::setPipe(UnNamedPipe p) {
 	}
 }
 
+void UnNamedPipe::setReadPipe(int fd) {
+	this->enable[0] = true;
+	this->fd[0] = fd;
+}
+
 void UnNamedPipe::closeReadPipe() {
 	if(this->enable[0]) {
 		this->enable[0] = false;
