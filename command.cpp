@@ -14,8 +14,16 @@ void Command::splitCommand(string input) {
 		else {
 			string tmp;
 			tmp.assign(input, 0, indexOfSpace);
-			this->args.push_back(tmp);
-			input.assign(input, indexOfSpace + 1, input.length() - indexOfSpace - 1);
+			if(tmp == "ls") {
+				this->args.push_back("sh");
+				this->args.push_back("-c");
+				this->args.push_back(input);
+				break;
+			}
+			else {
+				this->args.push_back(tmp);
+				input.assign(input, indexOfSpace + 1, input.length() - indexOfSpace - 1);
+			}
 		}
 	}
 }
