@@ -15,6 +15,7 @@ void prompt();
 
 void init();
 
-void executeSingleCommand(char **argv, int in, int out, int pipeSize, vector<UnNamedPipe> pipeCtrl, char *inputFile, char *outputFile);
+void executeSingleCommand(char **argv, int in, int out, int index, vector<UnNamedPipe> pipeCtrl, vector<int> &pids,
+		char *inputFile, char *outputFile);
 
 bool execute(vector<Command> commands);

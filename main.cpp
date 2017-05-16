@@ -13,16 +13,17 @@ void prompt() {
 
 void init() {
 	signal(SIGCHLD, reaper);
-	//signal(SIGINT, SIG_IGN);
+	signal(SIGINT, SIG_IGN);
 	signal(SIGTSTP, SIG_IGN);
 	signal(SIGQUIT, SIG_DFL);
 	signal(SIGTTIN, SIG_IGN);
 	signal(SIGTTOU, SIG_IGN);
 }
 
-void executeSingleCommand(char **argv, int in, int out, int pipeSize, vector<UnNamedPipe> pipeCtrl, char *inputFile, char *outputFile) {
+void executeSingleCommand(char **argv, int in, int out, int index, vector<UnNamedPipe> pipeCtrl, vector<int> &pids,
+		char *inputFile, char *outputFile) {
 	pid_t pid;
-	pid = fork();
+	pids.push_back(pid = fork());
 
 	if(pid < 0) {
 		cout << "fork error" << endl;
@@ -52,6 +53,7 @@ void executeSingleCommand(char **argv, int in, int out, int pipeSize, vector<UnN
 		}
 		else if(out != STDOUT_FILENO) { dup2(out, STDOUT_FILENO); }
 		/* close pipe */
+		int pipeSize = pipeCtrl.size();
 		for(int i = 0;i < pipeSize;i++) {
 			pipeCtrl[i].closeReadPipe();
 			pipeCtrl[i].closeWritePipe();
@@ -69,32 +71,27 @@ bool execute(vector<Command> commands) {
 	for(int i = 0;i < commandsSize;i++) {
 		if(commands[i].type() == 1) { pipeSize++; }
 	};
+	vector<int> pids;
 	vector<UnNamedPipe> pipeCtrl(pipeSize, UnNamedPipe());
 	for(int i = 0;i < pipeSize;i++) { pipeCtrl[i].createPipe(); };
 
 	/* Each command */
+	int index = 0;
 	for(int i = 0;i < commandsSize;i++) {
 		int in, out;
-		int type = commands[i].type(),
-			nextType = i < commandsSize - 1 ? commands[i+1].type() : -1,
+		int nextType = i < commandsSize - 1 ? commands[i+1].type() : -1,
 			afterNextType = i < commandsSize - 2 ? commands[i+2].type() : -1;
 		char **argv = commands[i].genArgs(),
 			 **nextArgv = i < commandsSize - 1 ? commands[i+1].genArgs() : NULL,
 			 **afterNextArgv = i < commandsSize - 2 ? commands[i+2].genArgs() : NULL;
 		string cmd(argv[0]);
 		/* input & output */
-		in = i == 0 ? STDIN_FILENO : pipeCtrl[i - 1].getReadPipe();
-		if((nextType == 2 && afterNextType == 3) || (nextType == 3 && afterNextType == 2)) {
-			i += 2;
-		}
-		else if(nextType == 2 || nextType == 3) {
-			i++;
-		}
-		out = i == commandsSize - 1 ? STDOUT_FILENO : pipeCtrl[i].getWritePipe();
+		in = index == 0 ? STDIN_FILENO : pipeCtrl[index - 1].getReadPipe();
+		out = index == pipeSize ? STDOUT_FILENO : pipeCtrl[index].getWritePipe();
+		if((nextType == 2 && afterNextType == 3) || (nextType == 3 && afterNextType == 2)) { i += 2; }
+		else if(nextType == 2 || nextType == 3) { i++; }
 		/* execute command */
-		if(cmd == "exit") {
-			return false;
-		}
+		if(cmd == "exit") { return false; }
 		else if(cmd == "export") {
 			int j = 1;
 			while(argv[j]) {
@@ -117,17 +114,18 @@ bool execute(vector<Command> commands) {
 		}
 		char *inputFile = nextType == 2 ? nextArgv[0] : afterNextType == 2 ? afterNextArgv[0] : NULL;
 		char *outputFile = nextType == 3 ? nextArgv[0] : afterNextType == 3 ? afterNextArgv[0] : NULL;
-		executeSingleCommand(argv, in, out, pipeSize, pipeCtrl, inputFile, outputFile);
+		executeSingleCommand(argv, in, out, index, pipeCtrl, pids, inputFile, outputFile);
+		index++;
 	}
 	/* close pipe */
 	for(int i = 0;i < pipeSize;i++) {
 		pipeCtrl[i].closeReadPipe();
 		pipeCtrl[i].closeWritePipe();
 	}
-	/* wait */
-	for(int i = 0;i < pipeSize + 1;i++) {
+	/* waitpid */
+	for(unsigned int i = 0;i < pids.size();i++) {
 		int status;
-		wait(&status);
+		waitpid(pids[i], &status, WUNTRACED | WCONTINUED);
 	}
 	return true;
 }
