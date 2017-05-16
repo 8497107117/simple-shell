@@ -13,16 +13,65 @@ void prompt() {
 
 void init() {
 	(void) signal(SIGCHLD, reaper);
-	signal(SIGINT, SIG_IGN);
+	//`signal(SIGINT, SIG_IGN);
 	signal(SIGTSTP, SIG_IGN);
 	signal(SIGQUIT, SIG_DFL);
 }
 
-bool execute(vector<Command> commands) {
-	UnNamedPipe cur, pre;
-	int status, commandsSize = commands.size();
+void executeSingleCommand(char **argv, int in, int out, int pipeSize, vector<UnNamedPipe> pipeCtrl, char *inputFile, char *outputFile) {
+	pid_t pid;
+	pid = fork();
 
+	if(pid < 0) {
+		cout << "fork error" << endl;
+		exit(1);
+	}
+	/* child */
+	else if(pid == 0) {
+		/* input & output */
+		if(in != STDIN_FILENO) { dup2(in, STDIN_FILENO); }
+		else if(inputFile) {
+			int input = open(inputFile, O_RDONLY);
+			if(input == -1) {
+				cout << "read file error" << endl;
+				exit(1);
+			}
+			dup2(input, STDIN_FILENO);
+			close(input);
+		}
+		if(outputFile) {
+			int output = open(outputFile, O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+			if(output == -1) {
+				cout << "write file error" << endl;
+				exit(1);
+			}
+			dup2(output, STDOUT_FILENO);
+			close(output);
+		}
+		else if(out != STDOUT_FILENO) { dup2(out, STDOUT_FILENO); }
+		/* close pipe */
+		for(int i = 0;i < pipeSize;i++) {
+			pipeCtrl[i].closeReadPipe();
+			pipeCtrl[i].closeWritePipe();
+		}
+		/* exec */
+		execvp(argv[0], argv);
+		printf("Unknown command: [%s].\n", argv[0]);
+		exit(1);
+	}
+}
+
+bool execute(vector<Command> commands) {
+	int commandsSize = commands.size(), pipeSize = 0;
 	for(int i = 0;i < commandsSize;i++) {
+		if(commands[i].type() == 1) { pipeSize++; }
+	};
+	vector<UnNamedPipe> pipeCtrl(pipeSize, UnNamedPipe());
+	for(int i = 0;i < pipeSize;i++) { pipeCtrl[i].createPipe(); };
+
+	/* Each command */
+	for(int i = 0;i < commandsSize;i++) {
+		int in, out;
 		int type = commands[i].type(),
 			nextType = i < commandsSize - 1 ? commands[i+1].type() : -1,
 			afterNextType = i < commandsSize - 2 ? commands[i+2].type() : -1;
@@ -30,13 +79,16 @@ bool execute(vector<Command> commands) {
 			 **nextArgv = i < commandsSize - 1 ? commands[i+1].genArgs() : NULL,
 			 **afterNextArgv = i < commandsSize - 2 ? commands[i+2].genArgs() : NULL;
 		string cmd(argv[0]);
+		/* input & output */
+		in = i == 0 ? STDIN_FILENO : pipeCtrl[i - 1].getReadPipe();
 		if((nextType == 2 && afterNextType == 3) || (nextType == 3 && afterNextType == 2)) {
 			i += 2;
 		}
 		else if(nextType == 2 || nextType == 3) {
 			i++;
 		}
-
+		out = i == commandsSize - 1 ? STDOUT_FILENO : pipeCtrl[i].getWritePipe();
+		/* execute command */
 		if(cmd == "exit") {
 			return false;
 		}
@@ -50,120 +102,19 @@ bool execute(vector<Command> commands) {
 				cout << "unset error" << endl;
 			}
 		}
-
-		if(i != commandsSize - 1) {
-			cur.createPipe();
-		}
-
-		pid_t pid;
-		pid = fork();
-
-		if(pid < 0) {
-			cout << "fork error" << endl;
-			exit(1);
-		}
-		/* child */
-		else if(pid == 0) {
-			signal(SIGINT, SIG_IGN);
-			if(i != commandsSize - 1) {
-				cur.closeReadPipe();
-			}
-			/*  stdin  */
-			/* | */
-			if(type == 1) {
-				dup2(pre.getReadPipe(), STDIN_FILENO);
-				pre.closeReadPipe();
-			}
-			/* < */
-			if(nextType == 2) {
-				int input = open(nextArgv[0], O_RDONLY);
-				if(input == -1) {
-					cout << "read file error" << endl;
-					exit(1);
-				}
-				dup2(input, STDIN_FILENO);
-				close(input);
-			}
-			else if(afterNextType == 2 && nextType == 3) {
-				int input = open(afterNextArgv[0], O_RDONLY);
-				if(input == -1) {
-					cout << "read file error" << endl;
-					exit(1);
-				}
-				dup2(input, STDIN_FILENO);
-				close(input);
-			}
-			/*  stdout  */
-			/* > */
-			if(nextType == 3) {
-				int output = open(nextArgv[0], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
-				if(output == -1) {
-					cout << "write file error" << endl;
-					exit(1);
-				}
-				dup2(output, STDOUT_FILENO);
-				close(output);
-			}
-			else if(afterNextType == 3 && nextType == 2) {
-				int output = open(afterNextArgv[0], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
-				if(output == -1) {
-					cout << "write file error" << endl;
-					exit(1);
-				}
-				dup2(output, STDOUT_FILENO);
-				close(output);
-			}
-			else if(i != commandsSize - 1) {
-				dup2(cur.getWritePipe(), STDOUT_FILENO);
-				cur.closeWritePipe();
-			}
-			/* exec */
-			if(cmd == "export" || cmd == "unset") {
-				execlp("printenv", "printenv", NULL);
-			}
-			else {
-				execvp(argv[0], argv);
-			}
-			printf("Unknown command: [%s].\n", argv[0]);
-			exit(1);
-		}
-		/* parent */
-		else {
-			waitpid(pid, &status, WUNTRACED | WCONTINUED);
-			if(WIFEXITED(status)) {
-				kill(pid, SIGTERM);
-			}
-			else if(WIFSTOPPED(status)) {
-				//printf("stopped\n");
-			}
-			else {
-				//printf("???\n");
-			}
-			if(i != commandsSize - 1) {
-				if(nextType == 3) {
-					int input = open(nextArgv[0], O_RDONLY);
-					if(input == -1) {
-						cout << "read file error" << endl;
-						exit(1);
-					}
-					cur.setReadPipe(input);
-				}
-				else if(afterNextType == 3 && nextType == 2) {
-					int input = open(afterNextArgv[0], O_RDONLY);
-					if(input == -1) {
-						cout << "read file error" << endl;
-						exit(1);
-					}
-					cur.setReadPipe(input);
-				}
-				cur.closeWritePipe();
-				pre.closeReadPipe();
-				pre.setPipe(cur);
-			}
-			else {
-				pre.closeReadPipe();
-			}
-		}
+		char *inputFile = nextType == 2 ? nextArgv[0] : afterNextType == 2 ? afterNextArgv[0] : NULL;
+		char *outputFile = nextType == 3 ? nextArgv[0] : afterNextType == 3 ? afterNextArgv[0] : NULL;
+		executeSingleCommand(argv, in, out, pipeSize, pipeCtrl, inputFile, outputFile);
+	}
+	/* close pipe */
+	for(int i = 0;i < pipeSize;i++) {
+		pipeCtrl[i].closeReadPipe();
+		pipeCtrl[i].closeWritePipe();
+	}
+	/* wait */
+	for(int i = 0;i < pipeSize + 1;i++) {
+		int status;
+		wait(&status);
 	}
 	return true;
 }
