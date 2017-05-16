@@ -1,11 +1,16 @@
 #include "command.h"
 
 void Command::splitCommand(string input) {
-	int indexOfSpace = 0;
+	int indexOfSpace = 0, indexOfQuotes = 0, indexOfEndQuotes;
 	while(1) {
 		indexOfSpace = input.find_first_of(' ', 0);
+		indexOfQuotes = input.find_first_of('\"', 0);
+		indexOfEndQuotes = input.find_first_of('\"', 1);
 		if(indexOfSpace == std::string::npos) {
-			if(input.find("*") != string::npos || input.find("?") != string::npos) {
+			if(indexOfQuotes == 0 && indexOfEndQuotes != string::npos) {
+				this->args.push_back(input.substr(1, indexOfEndQuotes - 1));
+			}
+			else if(input.find("*") != string::npos || input.find("?") != string::npos) {
 				glob_t result;
 				glob(input.c_str(), GLOB_TILDE, NULL, &result);
 				for(int i = 0;i < (int)result.gl_pathc;i++) {
@@ -26,7 +31,11 @@ void Command::splitCommand(string input) {
 		else {
 			string tmp;
 			tmp.assign(input, 0, indexOfSpace);
-			if(tmp.find("*") != string::npos || tmp.find("?") != string::npos) {
+			if(indexOfQuotes == 0 && indexOfEndQuotes != string::npos) {
+				this->args.push_back(input.substr(1, indexOfEndQuotes - 1));
+				input.assign(input, indexOfEndQuotes + 1, input.length() - indexOfEndQuotes - 1);
+			}
+			else if(tmp.find("*") != string::npos || tmp.find("?") != string::npos) {
 				glob_t result;
 				glob(tmp.c_str(), GLOB_TILDE, NULL, &result);
 				for(int i = 0;i < (int)result.gl_pathc;i++) {
@@ -35,11 +44,12 @@ void Command::splitCommand(string input) {
 				if(!result.gl_pathc) {
 					this->args.push_back(tmp);
 				}
+				input.assign(input, indexOfSpace + 1, input.length() - indexOfSpace - 1);
 			}
 			else {
 				this->args.push_back(tmp);
+				input.assign(input, indexOfSpace + 1, input.length() - indexOfSpace - 1);
 			}
-			input.assign(input, indexOfSpace + 1, input.length() - indexOfSpace - 1);
 		}
 	}
 }

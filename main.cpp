@@ -12,10 +12,12 @@ void prompt() {
 }
 
 void init() {
-	(void) signal(SIGCHLD, reaper);
-	//`signal(SIGINT, SIG_IGN);
+	signal(SIGCHLD, reaper);
+	//signal(SIGINT, SIG_IGN);
 	signal(SIGTSTP, SIG_IGN);
 	signal(SIGQUIT, SIG_DFL);
+	signal(SIGTTIN, SIG_IGN);
+	signal(SIGTTOU, SIG_IGN);
 }
 
 void executeSingleCommand(char **argv, int in, int out, int pipeSize, vector<UnNamedPipe> pipeCtrl, char *inputFile, char *outputFile) {
