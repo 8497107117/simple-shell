@@ -5,7 +5,19 @@ void Command::splitCommand(string input) {
 	while(1) {
 		indexOfSpace = input.find_first_of(' ', 0);
 		if(indexOfSpace == std::string::npos) {
-			this->args.push_back(input);
+			if(input.find("*") != string::npos || input.find("?") != string::npos) {
+				glob_t result;
+				glob(input.c_str(), GLOB_TILDE, NULL, &result);
+				for(int i = 0;i < (int)result.gl_pathc;i++) {
+					this->args.push_back(result.gl_pathv[i]);
+				}
+				if(!result.gl_pathc) {
+					this->args.push_back(input);
+				}
+			}
+			else {
+				this->args.push_back(input);
+			}
 			return;
 		}
 		else if(indexOfSpace == 0) {
@@ -14,16 +26,20 @@ void Command::splitCommand(string input) {
 		else {
 			string tmp;
 			tmp.assign(input, 0, indexOfSpace);
-			if(tmp == "ls") {
-				this->args.push_back("sh");
-				this->args.push_back("-c");
-				this->args.push_back(input);
-				break;
+			if(tmp.find("*") != string::npos || tmp.find("?") != string::npos) {
+				glob_t result;
+				glob(tmp.c_str(), GLOB_TILDE, NULL, &result);
+				for(int i = 0;i < (int)result.gl_pathc;i++) {
+					this->args.push_back(result.gl_pathv[i]);
+				}
+				if(!result.gl_pathc) {
+					this->args.push_back(tmp);
+				}
 			}
 			else {
 				this->args.push_back(tmp);
-				input.assign(input, indexOfSpace + 1, input.length() - indexOfSpace - 1);
 			}
+			input.assign(input, indexOfSpace + 1, input.length() - indexOfSpace - 1);
 		}
 	}
 }
@@ -40,7 +56,7 @@ int Command::type() {
 char** Command::genArgs() {
 	char ** argv;
 	argv = new char *[this->args.size() + 1];
-	for(int i = 0;i < this->args.size();i++) {
+	for(unsigned int i = 0;i < this->args.size();i++) {
 		argv[i] = strdup(this->args[i].c_str());
 	}
 	argv[this->args.size()] = NULL;
