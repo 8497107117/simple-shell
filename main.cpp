@@ -55,7 +55,8 @@ void executeSingleCommand(char **argv, int in, int out, int pipeSize, vector<UnN
 			pipeCtrl[i].closeWritePipe();
 		}
 		/* exec */
-		execvp(argv[0], argv);
+		if(!strcmp(argv[0], "export") || !strcmp(argv[0], "unset")) { execlp("printenv", "printenv", NULL); }
+		else { execvp(argv[0], argv); }
 		printf("Unknown command: [%s].\n", argv[0]);
 		exit(1);
 	}
@@ -93,13 +94,23 @@ bool execute(vector<Command> commands) {
 			return false;
 		}
 		else if(cmd == "export") {
-			if(setenv(argv[1], argv[2], 1) != 0) {
-				cout << "export error" << endl;
+			int j = 1;
+			while(argv[j]) {
+				string env(argv[j]);
+				int indexOfEqual = env.find_first_of("=");
+				if(setenv(env.substr(0, indexOfEqual).c_str(), env.substr(indexOfEqual + 1).c_str(), 1) != 0) {
+					cout << "export error" << endl;
+				}
+				j++;
 			}
 		}
 		else if(cmd == "unset") {
-			if(unsetenv(argv[1]) != 0) {
-				cout << "unset error" << endl;
+			int j = 1;
+			while(argv[j]) {
+				if(unsetenv(argv[j]) != 0) {
+					cout << "unset error" << endl;
+				}
+				j++;
 			}
 		}
 		char *inputFile = nextType == 2 ? nextArgv[0] : afterNextType == 2 ? afterNextArgv[0] : NULL;
