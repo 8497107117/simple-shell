@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/signal.h>
+#include <signal.h>
 
 #include "job.h"
 
