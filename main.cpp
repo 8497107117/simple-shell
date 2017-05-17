@@ -13,7 +13,7 @@ void prompt() {
 
 void init() {
 	signal(SIGCHLD, reaper);
-	//signal(SIGINT, SIG_IGN);
+	signal(SIGINT, SIG_IGN);
 	signal(SIGTSTP, SIG_IGN);
 	signal(SIGQUIT, SIG_DFL);
 	signal(SIGTTIN, SIG_IGN);
