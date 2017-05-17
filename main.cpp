@@ -67,7 +67,7 @@ void executeSingleCommand(char **argv, int in, int out, int index, vector<UnName
 }
 
 bool execute(vector<Command> commands) {
-	int commandsSize = commands.size(), pipeSize = 0;
+	int commandsSize = commands.size(), pipeSize = 0, pgid = 0;
 	for(int i = 0;i < commandsSize;i++) {
 		if(commands[i].type() == 1) { pipeSize++; }
 	};
@@ -121,6 +121,11 @@ bool execute(vector<Command> commands) {
 	for(int i = 0;i < pipeSize;i++) {
 		pipeCtrl[i].closeReadPipe();
 		pipeCtrl[i].closeWritePipe();
+	}
+	/* setpgid */
+	for(unsigned int i = 0;i < pids.size();i++) {
+		setpgid(pids[i], pgid);
+		if(i == 0) { pgid = pids[i]; }
 	}
 	/* waitpid */
 	for(unsigned int i = 0;i < pids.size();i++) {
