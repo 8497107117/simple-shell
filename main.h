@@ -7,15 +7,18 @@
 #include <sys/types.h>
 #include <sys/signal.h>
 
-#include "command.h"
+#include "job.h"
+
+using namespace std;
+
+Jobs jobs;
 
 void reaper(int sig);
-
 void prompt();
-
 void init();
-
+void exportEnv(char **argv);
+void unsetEnv(char **argv);
+void foreground(int jobId);
 void executeSingleCommand(char **argv, int in, int out, int index, vector<UnNamedPipe> pipeCtrl, vector<int> &pids,
 		char *inputFile, char *outputFile);
-
-bool execute(vector<Command> commands);
+void execute(Commands commands);

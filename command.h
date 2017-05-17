@@ -30,9 +30,11 @@ class Commands {
 		// | < >
 		string symbol;
 		vector<Command> commands;
+		bool background;
 		void splitSymbol(string input);
 		string trimCommand(string input);
 		public:
 		Commands(string input);
 		vector<Command> getCommands();
+		bool isBackground();
 };

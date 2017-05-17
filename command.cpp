@@ -133,8 +133,13 @@ string Commands::trimCommand(string input) {
 Commands::Commands(string input) {
 	this->symbol = "|<>";
 	this->splitSymbol(input);
+	this->background = false;
 }
 
 vector<Command> Commands::getCommands() {
 	return this->commands;
+}
+
+bool Commands::isBackground() {
+	return this->background;
 }

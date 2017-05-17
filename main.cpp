@@ -13,11 +13,52 @@ void prompt() {
 
 void init() {
 	signal(SIGCHLD, reaper);
-	signal(SIGINT, SIG_IGN);
+	//signal(SIGINT, SIG_IGN);
 	signal(SIGTSTP, SIG_IGN);
 	signal(SIGQUIT, SIG_DFL);
 	signal(SIGTTIN, SIG_IGN);
 	signal(SIGTTOU, SIG_IGN);
+}
+
+void exportEnv(char **argv) {
+	int i = 1;
+	while(argv[i]) {
+		string env(argv[i]);
+		int indexOfEqual = env.find_first_of("=");
+		if(setenv(env.substr(0, indexOfEqual).c_str(), env.substr(indexOfEqual + 1).c_str(), 1) != 0) {
+			cout << "export error" << endl;
+		}
+		i++;
+	}
+}
+
+void unsetEnv(char **argv) {
+	int i = 1;
+	while(argv[i]) {
+		if(unsetenv(argv[i]) != 0) {
+			cout << "unset error" << endl;
+		}
+		i++;
+	}
+}
+
+void foreground(int jobId) {
+	if(jobId > jobs.getJobsSize()) { return; }
+	Job job = jobs.getJob(jobId);
+	if(kill(job.getPgid(), SIGCONT) == -1) {
+		cout << "foreground error" << endl;
+		return;
+	}
+	tcsetpgrp(STDIN_FILENO, job.getPgid());
+	/* waitpid */
+	int status;
+	for(unsigned int i = 0;i < job.getPids().size();i++) {
+		waitpid(job.getPids()[i], &status, WUNTRACED);
+	}
+	if(WIFEXITED(status)) {
+		jobs.removeJob(jobId);
+	}
+	tcsetpgrp(STDIN_FILENO, getpgrp());
 }
 
 void executeSingleCommand(char **argv, int in, int out, int index, vector<UnNamedPipe> pipeCtrl, vector<int> &pids,
@@ -66,12 +107,13 @@ void executeSingleCommand(char **argv, int in, int out, int index, vector<UnName
 	}
 }
 
-bool execute(vector<Command> commands) {
-	int commandsSize = commands.size(), pipeSize = 0, pgid = 0;
+void execute(Commands commands) {
+	vector<Command> command = commands.getCommands();
+	int commandsSize = command.size(), pipeSize = 0, pgid = 0;
 	for(int i = 0;i < commandsSize;i++) {
-		if(commands[i].type() == 1) { pipeSize++; }
+		if(command[i].type() == 1) { pipeSize++; }
 	};
-	vector<int> pids;
+	vector<pid_t> pids;
 	vector<UnNamedPipe> pipeCtrl(pipeSize, UnNamedPipe());
 	for(int i = 0;i < pipeSize;i++) { pipeCtrl[i].createPipe(); };
 
@@ -79,11 +121,11 @@ bool execute(vector<Command> commands) {
 	int index = 0;
 	for(int i = 0;i < commandsSize;i++) {
 		int in, out;
-		int nextType = i < commandsSize - 1 ? commands[i+1].type() : -1,
-			afterNextType = i < commandsSize - 2 ? commands[i+2].type() : -1;
-		char **argv = commands[i].genArgs(),
-			 **nextArgv = i < commandsSize - 1 ? commands[i+1].genArgs() : NULL,
-			 **afterNextArgv = i < commandsSize - 2 ? commands[i+2].genArgs() : NULL;
+		int nextType = i < commandsSize - 1 ? command[i+1].type() : -1,
+			afterNextType = i < commandsSize - 2 ? command[i+2].type() : -1;
+		char **argv = command[i].genArgs(),
+			 **nextArgv = i < commandsSize - 1 ? command[i+1].genArgs() : NULL,
+			 **afterNextArgv = i < commandsSize - 2 ? command[i+2].genArgs() : NULL;
 		string cmd(argv[0]);
 		/* input & output */
 		in = index == 0 ? STDIN_FILENO : pipeCtrl[index - 1].getReadPipe();
@@ -91,26 +133,26 @@ bool execute(vector<Command> commands) {
 		if((nextType == 2 && afterNextType == 3) || (nextType == 3 && afterNextType == 2)) { i += 2; }
 		else if(nextType == 2 || nextType == 3) { i++; }
 		/* execute command */
-		if(cmd == "exit") { return false; }
+		if(cmd == "exit") { exit(0); }
 		else if(cmd == "export") {
-			int j = 1;
-			while(argv[j]) {
-				string env(argv[j]);
-				int indexOfEqual = env.find_first_of("=");
-				if(setenv(env.substr(0, indexOfEqual).c_str(), env.substr(indexOfEqual + 1).c_str(), 1) != 0) {
-					cout << "export error" << endl;
-				}
-				j++;
-			}
+			exportEnv(argv);
 		}
 		else if(cmd == "unset") {
-			int j = 1;
-			while(argv[j]) {
-				if(unsetenv(argv[j]) != 0) {
-					cout << "unset error" << endl;
-				}
-				j++;
+			unsetEnv(argv);
+		}
+		else if(cmd == "jobs" && argv[1] == NULL && commandsSize == 1) {
+			jobs.showJobs();
+			return;
+		}
+		else if(cmd == "fg" && commandsSize == 1) {
+			int jobId = 0;
+			if(argv[1]) {
+				string s(argv[1]);
+				if(s.find("%") == 0) { jobId = atoi(s.substr(1).c_str()); }
+				else { cout << "get job id error" << endl; return; }
 			}
+			foreground(jobId);
+			return;
 		}
 		char *inputFile = nextType == 2 ? nextArgv[0] : afterNextType == 2 ? afterNextArgv[0] : NULL;
 		char *outputFile = nextType == 3 ? nextArgv[0] : afterNextType == 3 ? afterNextArgv[0] : NULL;
@@ -126,15 +168,22 @@ bool execute(vector<Command> commands) {
 	for(unsigned int i = 0;i < pids.size();i++) {
 		setpgid(pids[i], pgid);
 		if(i == 0) { pgid = pids[i]; }
-		if(i == 0) { tcsetpgrp(0, pgid); }
+		if(i == 0 && !commands.isBackground()) { tcsetpgrp(STDIN_FILENO, pgid); }
 	}
+	/* add job */
+	int jobId = jobs.addJob(pgid, pids, command);
 	/* waitpid */
-	for(unsigned int i = 0;i < pids.size();i++) {
+	if(!commands.isBackground()) {
 		int status;
-		waitpid(pids[i], &status, WUNTRACED);
+		for(unsigned int i = 0;i < pids.size();i++) {
+			waitpid(pids[i], &status, WUNTRACED);
+		}
+		if(WIFEXITED(status)) {
+			jobs.removeJob(jobId);
+		}
+		tcsetpgrp(STDIN_FILENO, getpid());
 	}
-	tcsetpgrp(0, getpid());
-	return true;
+	return;
 }
 
 int main(int argc, char **argv) {
@@ -145,9 +194,7 @@ int main(int argc, char **argv) {
 
 		string input;
 		getline(cin, input);
-		Commands command(input);
-		if(!execute(command.getCommands())) {
-			break;
-		}
+		Commands commands(input);
+		execute(commands);
 	}
 }
