@@ -46,7 +46,8 @@ int Jobs::addJob(pid_t pgid, vector<pid_t> pids, vector<Command> commands) {
 }
 
 void Jobs::removeJob(int jobId) {
-	this->jobs.erase(this->jobs.begin() + jobId - 1);
+	if(jobId == 0) { this->jobs.pop_back(); }
+	else { this->jobs.erase(this->jobs.begin() + jobId - 1); }
 }
 
 void Jobs::showJobs() {

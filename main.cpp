@@ -45,16 +45,14 @@ void unsetEnv(char **argv) {
 void foreground(int jobId) {
 	if(jobId > jobs.getJobsSize()) { return; }
 	Job job = jobs.getJob(jobId);
-	if(kill(job.getPgid(), SIGCONT) == -1) {
+	if(kill(job.getPids()[job.getPids().size() - 1], SIGCONT) == -1) {
 		cout << "foreground error" << endl;
 		return;
 	}
 	tcsetpgrp(STDIN_FILENO, job.getPgid());
 	/* waitpid */
 	int status;
-	for(unsigned int i = 0;i < job.getPids().size();i++) {
-		waitpid(job.getPids()[i], &status, WUNTRACED);
-	}
+	waitpid(job.getPids()[job.getPids().size() - 1], &status, WUNTRACED);
 	if(WIFEXITED(status)) {
 		jobs.removeJob(jobId);
 	}

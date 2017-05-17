@@ -1,7 +1,7 @@
 #include "command.h"
 
 void Command::splitCommand(string input) {
-	int indexOfSpace = 0, indexOfQuotes = 0, indexOfEndQuotes;
+	size_t indexOfSpace = 0, indexOfQuotes = 0, indexOfEndQuotes;
 	while(1) {
 		indexOfSpace = input.find_first_of(' ', 0);
 		indexOfQuotes = input.find_first_of('\"', 0);
@@ -75,7 +75,7 @@ char** Command::genArgs() {
 
 void Commands::splitSymbol(string input) {
 	/* \r\n */
-	int indexOfRN = 0;
+	size_t indexOfRN = 0;
 	while(1) {
 		indexOfRN = input.find_first_of("\r\n", 0);
 		if(indexOfRN == std::string::npos) {
@@ -85,7 +85,7 @@ void Commands::splitSymbol(string input) {
 			input.erase(indexOfRN, 1);
 		}
 	}
-		int indexOfSymbol = 0;
+		size_t indexOfSymbol = 0;
 		char symbol = ' ';
 	while(1) {
 		indexOfSymbol = input.find_first_of(this->symbol, 0);
@@ -112,7 +112,7 @@ void Commands::splitSymbol(string input) {
 }
 
 string Commands::trimCommand(string input) {
-	int index = 0;
+	size_t index = 0;
 	while(1) {
 		index = input.find_first_not_of(' ', 0);
 		if(index == string::npos) {
