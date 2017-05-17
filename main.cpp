@@ -126,12 +126,14 @@ bool execute(vector<Command> commands) {
 	for(unsigned int i = 0;i < pids.size();i++) {
 		setpgid(pids[i], pgid);
 		if(i == 0) { pgid = pids[i]; }
+		if(i == 0) { tcsetpgrp(0, pgid); }
 	}
 	/* waitpid */
 	for(unsigned int i = 0;i < pids.size();i++) {
 		int status;
-		waitpid(pids[i], &status, WUNTRACED | WCONTINUED);
+		waitpid(pids[i], &status, WUNTRACED);
 	}
+	tcsetpgrp(0, getpid());
 	return true;
 }
 
